@@ -1,3 +1,88 @@
+# Upload kaggle.json from your local machine to Colab
+from google.colab import files
+uploaded = files.upload()   # Select your kaggle.json file when prompted
+
+# Move kaggle.json to the standard ~/.kaggle/ location
+!mkdir -p ~/.kaggle
+!cp kaggle.json ~/.kaggle/
+!chmod 600 ~/.kaggle/kaggle.json   # Secure the file
+print("✅ Kaggle credentials installed.")
+
+from kaggle.api.kaggle_api_extended import KaggleApi
+
+api = KaggleApi()
+api.authenticate()
+print("✅ Kaggle API authentication successful!")
+
+
+# Download the Smoke Detection Dataset
+dataset_name = "deepcontractor/smoke-detection-dataset"
+download_path = "/content/kaggle_data"
+
+import os
+os.makedirs(download_path, exist_ok=True)
+
+api.dataset_download_files(dataset_name, path=download_path, unzip=True)
+print(f"✅ Dataset downloaded to: {download_path}")
+
+
+# List downloaded files
+!ls -lh /content/kaggle_data
+
+
+import pandas as pd
+
+df = pd.read_csv("/content/kaggle_data/smoke_detection_iot.csv")
+print(f"Shape: {df.shape}")
+print(f"Columns: {list(df.columns)}")
+df.head()
+
+
+# Rename columns to match your BN schema
+df = df.rename(columns={
+    "Temperature[C]": "Temp",
+    "Humidity[%]": "Humidity",
+    "TVOC[ppb]": "CO",           # TVOC as a proxy for CO
+    "PM2.5":"Smoke",
+    "Fire Alarm": "Fire"
+})
+# Create a Smoke variable from PM2.5 (particulate matter = smoke)
+# df["Smoke"] = df["PM2.5"]
+
+# Keep only the required columns
+df = df[["Smoke", "Temp", "Humidity", "CO", "Fire"]]
+#df.to_csv("/content/drive/MyDrive/kaggle_fire_dataset.csv", index=False)
+# print("✅ Mapped dataset saved.")
+
+import numpy as np
+
+def _pgmpy_ok():
+    try:
+        from pgmpy.models import BayesianNetwork
+        from pgmpy.factors.discrete import TabularCPD
+        from pgmpy.inference import VariableElimination
+        TabularCPD("X", 2, [[0.3], [0.7]])
+        return True
+    except Exception:
+        return False
+
+numpy_ok = not np.__version__.startswith("2.")
+pgmpy_ok = _pgmpy_ok()
+
+if numpy_ok and pgmpy_ok:
+    print(f"✅ numpy {np.__version__}")
+    print("✅ pgmpy imports and TabularCPD work")
+    print("\n🚀 Ready. Proceed to Cell 2.")
+else:
+    print(f"Current numpy : {np.__version__}")
+    print(f"pgmpy available: {pgmpy_ok}")
+    print("\n⚠️  Installing numpy<2.0 and pgmpy==0.1.23...")
+    !pip install --quiet "numpy<2.0" "pgmpy==0.1.23"
+    print("\n✅ Installed.")
+    print("⚠️  RESTART the runtime now (Runtime → Restart session),")
+    print("    then re-run THIS cell. It will print ✅ and let you continue.")
+
+
 # ============================================================
 # CELL 2 — Imports, configuration, and Google Drive mount
 # ============================================================
